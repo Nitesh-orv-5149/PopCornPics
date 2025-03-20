@@ -178,7 +178,7 @@ const SearchKeywords = () => {
     }
   };
   
-  // Fetch media by keyword IDs
+  // Update the fetchMediaByKeywords function
   const fetchMediaByKeywords = async () => {
     if (selectedKeywords.length === 0) {
       setMediaError("Please select at least one keyword first");
@@ -190,49 +190,39 @@ const SearchKeywords = () => {
     setShowMediaResults(true);
 
     try {
-      // Get all keyword IDs
-      const keywordIds = selectedKeywords.map(keyword => keyword.id);
+      // Get all keyword IDs and join them with commas
+      // This is the key change - join with commas to create "AND" logic
+      const keywordIds = selectedKeywords.map(keyword => keyword.id).join(',');
       
-      // Create an array to store all media results
-      let allMediaResults = [];
+      const response = await axios.get(`https://api.themoviedb.org/3/discover/${type}`, {
+        params: {
+          api_key: API_KEY,
+          page: mediaPageNum,
+          include_adult: false,
+          language: 'en-US',
+          sort_by: 'popularity.desc',
+          with_keywords: keywordIds, // This will find media matching ALL keywords
+        },
+      });
       
-      // Fetch media for each keyword
-      for (const keywordId of keywordIds) {
-        const response = await axios.get(`https://api.themoviedb.org/3/discover/${type}`, {
-          params: {
-            api_key: API_KEY,
-            page: mediaPageNum,
-            include_adult: false,
-            language: 'en-US',
-            sort_by: 'popularity.desc',
-            with_keywords: keywordId,
-          },
-        });
-        
-        if (response.data && response.data.results) {
-          allMediaResults = [...allMediaResults, ...response.data.results];
+      if (response.data && response.data.results) {
+        // Animate media results
+        if (mediaResultsRef.current) {
+          gsap.to(mediaResultsRef.current, {
+            opacity: 0,
+            y: -10,
+            duration: 0.2,
+            onComplete: () => {
+              setMediaResults(response.data.results);
+              console.log(`${type} results:`, response.data.results);
+            }
+          });
+        } else {
+          setMediaResults(response.data.results);
+          console.log(`${type} results:`, response.data.results);
         }
-      }
-      
-      // Remove duplicates based on ID
-      const uniqueMediaResults = Array.from(
-        new Map(allMediaResults.map(item => [item.id, item])).values()
-      );
-      
-      // Animate media results
-      if (mediaResultsRef.current) {
-        gsap.to(mediaResultsRef.current, {
-          opacity: 0,
-          y: -10,
-          duration: 0.2,
-          onComplete: () => {
-            setMediaResults(uniqueMediaResults);
-            console.log(`${type} results:`, uniqueMediaResults);
-          }
-        });
       } else {
-        setMediaResults(uniqueMediaResults);
-        console.log(`${type} results:`, uniqueMediaResults);
+        setMediaResults([]);
       }
     } catch (error) {
       console.error("Media couldn't be fetched", error.message);
@@ -418,7 +408,7 @@ const SearchKeywords = () => {
           </h1>
           
           {/* Selected Keywords Section */}
-          <div className="mb-6">
+          <div className="mb-4">
             <div className="flex justify-between items-center mb-2">
               <h3 className="text-lg font-medium text-white">Selected Keywords:</h3>
               {selectedKeywords.length > 0 && (

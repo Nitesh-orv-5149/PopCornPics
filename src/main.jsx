@@ -31,7 +31,7 @@ const router = createBrowserRouter([
   { path: ':company/:id', element: <ProtectedRoute><ByCompany /></ProtectedRoute> },
   { path: '/bookmarked', element: <ProtectedRoute><Bookmarked /></ProtectedRoute> },
   { path: '/similar/:id', element: <ProtectedRoute><Similar /></ProtectedRoute> },
-  { path: '/searchkeywords', element: <ProtectedRoute><SearchKeywords /></ProtectedRoute> },
+  { path: '/searchbykeywords', element: <ProtectedRoute><SearchKeywords /></ProtectedRoute> },
 ]);
 
 createRoot(document.getElementById("root")).render(
