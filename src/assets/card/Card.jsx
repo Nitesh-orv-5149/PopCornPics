@@ -2,6 +2,7 @@ import React, { useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { gsap } from 'gsap';
 
+
 const Card = ({ Data, classul, mediaType }) => {
   const listRef = useRef(null);
   

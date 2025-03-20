@@ -1,7 +1,9 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { createBrowserRouter, RouterProvider, Navigate } from "react-router-dom";
-import { App, Home, About, Contact, Profile, Signup, Signin, Search, DetailsPage, GenresPage, Collections, Franchise, ByCompany, Bookmarked} from "./components/exports.js";
+import { App, Home, About, Contact, Profile, Signup, Signin, Search,  
+        DetailsPage, GenresPage, Collections, Franchise, ByCompany, 
+        Bookmarked, Similar, SearchKeywords} from "./components/exports.js";
 import { AppProvider } from "./components/AppContext";
 import { ApiProvider } from "./ApiContext.jsx";
 import { AuthProvider, useAuth } from "./AuthContext.jsx";
@@ -28,6 +30,8 @@ const router = createBrowserRouter([
   { path: 'franchise/:franchisename/:id', element: <ProtectedRoute><Franchise /></ProtectedRoute> },
   { path: ':company/:id', element: <ProtectedRoute><ByCompany /></ProtectedRoute> },
   { path: '/bookmarked', element: <ProtectedRoute><Bookmarked /></ProtectedRoute> },
+  { path: '/similar/:id', element: <ProtectedRoute><Similar /></ProtectedRoute> },
+  { path: '/searchkeywords', element: <ProtectedRoute><SearchKeywords /></ProtectedRoute> },
 ]);
 
 createRoot(document.getElementById("root")).render(

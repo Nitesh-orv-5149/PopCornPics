@@ -36,8 +36,8 @@ export const toggleUserTheme = async (uid, currentTheme, setTheme) => {
 };
 
 
-/** 🔹 Toggle a movie's bookmark (Store only ID) */
-export const toggleBookmark = async (uid, movieId, setIsBookmarked) => {
+/** 🔹 Toggle a movie's bookmark (Store as object with type and id) */
+export const toggleBookmark = async (uid, movieId, type, setIsBookmarked) => {
     if (!uid) return;
 
     try {
@@ -48,22 +48,35 @@ export const toggleBookmark = async (uid, movieId, setIsBookmarked) => {
             let bookmarks = userSnap.data().bookmarked || []; // Ensure array exists
             let updatedBookmarks;
 
-            if (bookmarks.includes(movieId)) {
-                updatedBookmarks = bookmarks.filter(id => id !== movieId); // Remove movie
+            // Check if this movie/show is already bookmarked
+            const existingBookmarkIndex = bookmarks.findIndex(
+                bookmark => bookmark.id === movieId && bookmark.type === type
+            );
+
+            if (existingBookmarkIndex !== -1) {
+                // Remove bookmark if exists
+                updatedBookmarks = bookmarks.filter((_, index) => index !== existingBookmarkIndex);
             } else {
-                updatedBookmarks = [...bookmarks, movieId]; // Add movie ID
+                // Add bookmark as object with type and id
+                updatedBookmarks = [...bookmarks, { type, id: movieId }];
             }
 
             await updateDoc(userRef, { bookmarked: updatedBookmarks });
-            setIsBookmarked(updatedBookmarks.includes(movieId));
-            console.log(`✅ Bookmark ${bookmarks.includes(movieId) ? "removed" : "added"} for movie ID: ${movieId}`);
+            
+            // Update UI state
+            const isNowBookmarked = updatedBookmarks.some(
+                bookmark => bookmark.id === movieId && bookmark.type === type
+            );
+            setIsBookmarked(isNowBookmarked);
+            
+            console.log(`✅ Bookmark ${existingBookmarkIndex !== -1 ? "removed" : "added"} for ${type} ID: ${movieId}`);
         }
     } catch (error) {
         console.error("❌ Error updating bookmarks:", error);
     }
 };
 
-/** 🔹 Get all bookmarked movie IDs for a user */
+/** 🔹 Get all bookmarked items for a user */
 export const getUserBookmarks = async (uid) => {
     try {
         const userRef = doc(db, "users", uid);
@@ -79,4 +92,13 @@ export const getUserBookmarks = async (uid) => {
         console.error("❌ Error fetching bookmarks:", error);
         return [];
     }
+};
+
+/** 🔹 Check if a specific item is bookmarked */
+export const isItemBookmarked = (bookmarks, id, type) => {
+    if (!bookmarks || !Array.isArray(bookmarks)) return false;
+    
+    return bookmarks.some(bookmark => 
+        bookmark.id === id && bookmark.type === type
+    );
 };

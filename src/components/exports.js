@@ -15,5 +15,7 @@ export {default as Collections} from './pages/Collections.jsx'
 export {default as Franchise} from './pages/franchise/Franchise.jsx'
 export {default as ByCompany} from './pages/franchise/ByCompany.jsx'
 export {default as Bookmarked} from './pages/Bookmarked.jsx'
+export {default as Similar} from './pages/similar/Similar.jsx'
+export {default as SearchKeywords} from './pages/keywords/SearchKeywords.jsx'
 
 export {default as Card} from '../assets/card/Card.jsx'

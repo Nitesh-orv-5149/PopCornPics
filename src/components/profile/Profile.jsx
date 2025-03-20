@@ -68,7 +68,7 @@ const Profile = () => {
           <div className="w-full flex justify-center">
             <Signout />
           </div>
-          <section>
+          {/* <section>
             <div>
                <input
                   type="password"
@@ -78,23 +78,21 @@ const Profile = () => {
                 />
                 <button onClick={handleDelete}>Delete Account</button>
             </div>
-          </section>
-          <section>
+          </section> */}
+          {/* <section>
             <button className='bg-blue-500 text-white px-4 py-2 rounded-md' onClick={() => {
               addNewFieldToAllUsers("bookmarked", [])
             }}>
                 Add "bookmarked" to All Users
             </button>
           </section>
-          {/* 🔹 Show Current Theme */}
           <p className="text-white mb-4">Current Theme: {theme}</p>
-          {/* 🔹 Toggle Theme Button */}
           <button
             onClick={handleToggleTheme}
             className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
           >
             Toggle Theme
-          </button>
+          </button> */}
         </div>
       </div>
     </div>

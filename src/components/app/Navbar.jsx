@@ -13,6 +13,7 @@ const Navbar = () => {
     { text: "genres", icon: "fa-solid fa-list", path: "/genrespage" },
     { text: "collections", icon: "fa-solid fa-folder", path: "/collections" },
     { text: "bookmarked", icon: "fa-solid fa-bookmark", path: "/bookmarked" },
+    { text: "searchkeywords", icon: "fa-solid fa-search", path: "/searchkeywords" },
   ];
 
   const navVariants = {

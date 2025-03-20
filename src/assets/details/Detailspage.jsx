@@ -1,13 +1,12 @@
 import axios from 'axios'
 import React, { useState, useEffect, useContext } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, Link } from 'react-router-dom'
 import { ApiContext } from '../../ApiContext'
 import Reviews from './Reviews'
 import { motion } from 'framer-motion'
 import { useAuth } from '../../AuthContext';
-import { getUserBookmarks, toggleBookmark } from "../../firestoreUtils";
-// import { auth, db } from '../../firebase'
-// import { doc, setDoc, getDoc } from 'firebase/firestore'
+import { getUserBookmarks, toggleBookmark, isItemBookmarked } from "../../firestoreUtils";
+import { Similar } from '../../components/exports';
 
 const Detailspage = () => {
   const { type, id } = useParams()
@@ -21,19 +20,20 @@ const Detailspage = () => {
   const { User } = useAuth();
   const [isBookmarked, setIsBookmarked] = useState(false);
 
+  // Check if type is valid
+  const validType = type === 'movie' || type === 'tv' ? type : 'movie';
+
   useEffect(() => {
     if (!User) return;
 
     const fetchBookmarks = async () => {
       const bookmarks = await getUserBookmarks(User.uid);
-      setIsBookmarked(bookmarks.includes(id));
+      // Use the new helper function to check if item is bookmarked
+      setIsBookmarked(isItemBookmarked(bookmarks, id, validType));
     };
 
     fetchBookmarks();
-  }, [User, id]);
-
-  // Check if type is valid
-  const validType = type === 'movie' || type === 'tv' ? type : 'movie';
+  }, [User, id, validType]);
 
   const handleExpand = (reviewId) => {
     setExpandedReviewId(expandedReviewId === reviewId ? null : reviewId);
@@ -115,7 +115,12 @@ const Detailspage = () => {
     }
   };
 
-  
+  // Handler for bookmark toggle
+  const handleBookmarkToggle = () => {
+    if (User) {
+      toggleBookmark(User.uid, id, validType, setIsBookmarked);
+    }
+  };
 
   return (
     <>
@@ -170,16 +175,22 @@ const Detailspage = () => {
                   {details.number_of_seasons} Season{details.number_of_seasons !== 1 ? 's' : ''}
                 </div>
               )}
-              {/* 🔹 Bookmark Button (Stores only Movie ID) */}
+              {/* 🔹 Bookmark Button (Stores as object with type and id) */}
               {User && (
-                  <button onClick={() => toggleBookmark(User.uid, id, setIsBookmarked)}>
-                    <i className={`fa-regular fa-bookmark text-2xl ${isBookmarked ? "bg-yellow-500" : ""}`}></i>
-                  </button>
-                )}
-
+                <button 
+                  onClick={handleBookmarkToggle} 
+                  className="flex items-center gap-1 px-3 py-1 bg-gray-800/50 backdrop-blur-sm rounded-full hover:bg-gray-700/50 transition-colors"
+                >
+                  <i className={`fa-${isBookmarked ? 'solid' : 'regular'} fa-bookmark ${isBookmarked ? "text-yellow-500" : ""}`}></i>
+                  {isBookmarked ? 'Bookmarked' : 'Bookmark'}
+                </button>
+              )}
             </div>
           </motion.div>
 
+          {/* Rest of the component remains unchanged */}
+          {/* ... */}
+          
           {/* Media content container - horizontal on md+ screens */}
           <div className="flex flex-col md:flex-row md:items-start md:justify-between w-full gap-8 mb-8">
             {/* Poster */}
@@ -332,6 +343,11 @@ const Detailspage = () => {
               )}
             </div>
           </motion.div>
+          {/* Similar Section */}
+          <Link to={`/similar/${id}`} className='text-blue-400 justify-center flex items-center gap-2 group mb-5'>
+            <h3 className='text-2xl font-bold'>CHECK OUT SIMILAR {validType === 'tv' ? 'SHOWS' : 'MOVIES'}</h3>
+            <i className="fa-solid fa-arrow-right transition-transform group-hover:translate-x-2"></i>
+          </Link>
         </div>
       </main>
     </>

@@ -5,6 +5,7 @@ import { getAuth } from 'firebase/auth';
 import { Card } from '../exports';
 import { ApiContext } from '../../ApiContext';
 import axios from 'axios';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const Bookmarked = () => {
   const [bookmarkedItems, setBookmarkedItems] = useState([]);
@@ -202,59 +203,243 @@ const Bookmarked = () => {
   // Get current data based on filter
   const currentData = activeType === 'movie' ? bookmarkedMovies : bookmarkedTVShows;
 
+  // Animation variants
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    show: { 
+      opacity: 1,
+      transition: { 
+        staggerChildren: 0.08,
+        delayChildren: 0.2
+      }
+    },
+    exit: {
+      opacity: 0,
+      transition: { 
+        staggerChildren: 0.05,
+        staggerDirection: -1 
+      }
+    }
+  };
+
+  const buttonVariants = {
+    initial: { scale: 1 },
+    hover: { scale: 1.05, transition: { type: "spring", stiffness: 400 } },
+    tap: { scale: 0.98 }
+  };
+
+  const loadingVariants = {
+    animate: {
+      scale: [1, 1.1, 1],
+      opacity: [0.7, 1, 0.7],
+      transition: {
+        repeat: Infinity,
+        duration: 1.5
+      }
+    }
+  };
+
+  const slideVariants = {
+    enter: (direction) => ({
+      x: direction > 0 ? '100%' : '-100%',
+      opacity: 0
+    }),
+    center: {
+      x: 0,
+      opacity: 1,
+      transition: {
+        duration: 0.3,
+        type: "tween"
+      }
+    },
+    exit: (direction) => ({
+      x: direction < 0 ? '100%' : '-100%',
+      opacity: 0,
+      transition: {
+        duration: 0.3
+      }
+    })
+  };
+
+  const [slideDirection, setSlideDirection] = useState(0);
+
+  const switchTab = (type) => {
+    setSlideDirection(type === 'movie' ? -1 : 1);
+    setTimeout(() => handleTypeChange(type), 50);
+  };
+
   return (
-    <div className="bookmarks-container">
-      <h1 className="text-2xl font-bold mb-4">Bookmarked Items</h1>
+    <motion.div 
+      className="bookmarks-container"
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5 }}
+    >
+      <motion.h1 
+        className="text-2xl font-bold mb-4"
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2, duration: 0.4 }}
+      >
+        Bookmarked Items
+      </motion.h1>
       
-      {/* Type selector */}
-      <div className="flex space-x-4 mb-6">
-        <button 
-          onClick={() => handleTypeChange('movie')}
+      {/* Type selector with animated buttons */}
+      <motion.div 
+        className="flex space-x-4 mb-6"
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.3, duration: 0.4 }}
+      >
+        <motion.button 
+          onClick={() => switchTab('movie')}
           className={`px-4 py-2 rounded-lg transition-colors ${
             activeType === 'movie' 
               ? 'bg-blue-600 text-white' 
               : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
           }`}
+          variants={buttonVariants}
+          whileHover="hover"
+          whileTap="tap"
+          initial="initial"
         >
-          Movies ({bookmarkedMovies.length})
-        </button>
-        <button 
-          onClick={() => handleTypeChange('tv')}
+          <motion.span 
+            className="flex items-center"
+            animate={{ x: activeType === 'movie' ? 0 : 0 }}
+          >
+            Movies ({bookmarkedMovies.length})
+            {activeType === 'movie' && (
+              <motion.div 
+                className="ml-2 w-2 h-2 rounded-full bg-white"
+                layoutId="activeIndicator" 
+              />
+            )}
+          </motion.span>
+        </motion.button>
+        <motion.button 
+          onClick={() => switchTab('tv')}
           className={`px-4 py-2 rounded-lg transition-colors ${
             activeType === 'tv' 
               ? 'bg-blue-600 text-white' 
               : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
           }`}
+          variants={buttonVariants}
+          whileHover="hover"
+          whileTap="tap"
+          initial="initial"
         >
-          TV Shows ({bookmarkedTVShows.length})
-        </button>
-      </div>
+          <motion.span 
+            className="flex items-center"
+            animate={{ x: activeType === 'tv' ? 0 : 0 }}
+          >
+            TV Shows ({bookmarkedTVShows.length}) 
+            {activeType === 'tv' && (
+              <motion.div 
+                className="ml-2 w-2 h-2 rounded-full bg-white"
+                layoutId="activeIndicator" 
+              />
+            )}
+          </motion.span>
+        </motion.button>
+      </motion.div>
       
-      {loading ? (
-        <div className="flex justify-center items-center py-12">
-          <p className="text-lg">Loading your bookmarked items...</p>
-        </div>
-      ) : error ? (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-          <p>Error: {error}</p>
-        </div>
-      ) : currentData.length > 0 ? (
-        <Card 
-          Data={currentData} 
-          mediaType={activeType} 
-          classul="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4" 
-        />
-      ) : (
-        <div className="text-center py-12">
-          <p className="text-lg text-gray-600">
-            {activeType === 'movie' 
-             ? "No bookmarked movies found." 
-             : "No bookmarked TV shows found."}
-            {" "}Try bookmarking some content!
-          </p>
-        </div>
-      )}
-    </div>
+      <AnimatePresence mode="wait" custom={slideDirection}>
+        {loading ? (
+          <motion.div 
+            key="loading"
+            className="flex justify-center items-center py-12"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
+          >
+            <motion.p 
+              className="text-lg flex items-center"
+              variants={loadingVariants}
+              animate="animate"
+            >
+              <motion.span 
+                className="inline-block w-4 h-4 mr-3 bg-blue-600 rounded-full"
+                animate={{ 
+                  scale: [1, 1.5, 1],
+                  opacity: [1, 0.5, 1],
+                }}
+                transition={{ 
+                  repeat: Infinity,
+                  duration: 1.2,
+                  ease: "easeInOut"
+                }}
+              />
+              Loading your bookmarked items...
+            </motion.p>
+          </motion.div>
+        ) : error ? (
+          <motion.div 
+            key="error"
+            className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ duration: 0.4 }}
+          >
+            <p>Error: {error}</p>
+          </motion.div>
+        ) : currentData.length > 0 ? (
+          <motion.div
+            key={activeType}
+            custom={slideDirection}
+            variants={slideVariants}
+            initial="enter"
+            animate="center"
+            exit="exit"
+            className="w-full"
+          >
+            <motion.div 
+              variants={containerVariants}
+              initial="hidden"
+              animate="show"
+              exit="exit"
+              className="w-full"
+            >
+              <Card 
+                Data={currentData} 
+                mediaType={activeType} 
+                classul="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4" 
+                framerMotion={true} 
+              />
+            </motion.div>
+          </motion.div>
+        ) : (
+          <motion.div 
+            key="empty"
+            className="text-center py-12"
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            transition={{ duration: 0.4 }}
+          >
+            <motion.p 
+              className="text-lg text-gray-600"
+              initial={{ y: 10, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.2 }}
+            >
+              {activeType === 'movie' 
+                ? "No bookmarked movies found." 
+                : "No bookmarked TV shows found."}
+              {" "}
+              <motion.span
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.5 }}
+              >
+                Try bookmarking some content!
+              </motion.span>
+            </motion.p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
   );
 };
 
