@@ -21,9 +21,18 @@ const Search = () => {
   const API_KEY = useContext(ApiContext).API_KEY;
   const [allData, setAllData] = useState([]);
   const [pageNum, setPageNum] = useState(1);
-  const [type, setType] = useState('movie');
+  const [totalPages, setTotalPages] = useState(0);
   const [query, setQuery] = useState('');
   const [filteredResults, setFilteredResults] = useState([]);
+  
+  // Enhanced content type state
+  const [contentType, setContentType] = useState('movie'); // 'movie', 'tv', 'anime_movie', 'anime_tv'
+  
+  // New sorting options
+  const [sortBy, setSortBy] = useState('popularity.desc'); // Default: popularity descending
+  
+  // New search strictness toggle
+  const [strictSearch, setStrictSearch] = useState(true);
   
   // Initial page load animation
   useEffect(() => {
@@ -91,6 +100,16 @@ const Search = () => {
     }
   }, [filteredResults]);
 
+  // Get actual media type based on content type
+  const getMediaType = () => {
+    return contentType.startsWith('anime') ? contentType.split('_')[1] : contentType;
+  };
+
+  // Is content anime?
+  const isAnime = () => {
+    return contentType.startsWith('anime');
+  };
+
   // API calls
   const fetchAllData = async () => {
     if (query.trim() === '') {
@@ -101,7 +120,11 @@ const Search = () => {
       setIsLoading(true);
       setError(null);
       
-      const response = await axios.get(`https://api.themoviedb.org/3/search/${type}`, {
+      // Determine the actual media type to search (movie or tv)
+      const mediaType = getMediaType();
+      
+      // First, search for basic results
+      const response = await axios.get(`https://api.themoviedb.org/3/search/${mediaType}`, {
         params: {
           query: query,
           api_key: API_KEY,
@@ -109,9 +132,56 @@ const Search = () => {
           include_video: false,
           language: "en-US",
           page: pageNum,
-          sort_by: "popularity.desc",
+          sort_by: sortBy // Apply sorting parameter
         },
       });
+      
+      let results = response.data.results || [];
+      
+      // Store total pages for pagination
+      setTotalPages(response.data.total_pages || 0);
+      
+      // Filter for anime if needed
+      if (isAnime()) {
+        // Get details for each result to check if it's anime
+        const detailedResults = await Promise.all(
+          results.map(async (item) => {
+            try {
+              // Get details including genres
+              const detailsResponse = await axios.get(
+                `https://api.themoviedb.org/3/${mediaType}/${item.id}`, {
+                  params: {
+                    api_key: API_KEY,
+                    append_to_response: 'keywords'
+                  }
+                }
+              );
+              
+              // Check if it's animation genre (16) and from Japan
+              const isAnimation = detailsResponse.data.genres?.some(genre => genre.id === 16);
+              const isJapanese = detailsResponse.data.origin_country?.includes('JP') || 
+                               detailsResponse.data.production_countries?.some(country => country.iso_3166_1 === 'JP');
+              
+              // Check for anime keywords
+              const hasAnimeKeyword = detailsResponse.data.keywords?.keywords?.some(
+                keyword => ['anime', 'japan animation', 'japanese animation'].includes(keyword.name.toLowerCase())
+              );
+              
+              // Return the item with a flag indicating if it's anime
+              return {
+                ...item,
+                is_anime: isAnimation && (isJapanese || hasAnimeKeyword)
+              };
+            } catch (error) {
+              // If we can't get details, assume it's not anime
+              return { ...item, is_anime: false };
+            }
+          })
+        );
+        
+        // Filter to only keep anime results
+        results = detailedResults.filter(item => item.is_anime);
+      }
       
       // Animate the transition of new results
       if (resultsRef.current) {
@@ -120,14 +190,11 @@ const Search = () => {
           y: -10,
           duration: 0.2,
           onComplete: () => {
-            setAllData(response.data.results || []);
+            setAllData(results.filter(item => item.poster_path) || []);
           }
         });
       } else {
-        const newResults = response.data.results.filter(
-          item => item.poster_path 
-       );
-        setAllData(newResults || []);
+        setAllData(results.filter(item => item.poster_path) || []);
       }
       
     } catch (error) {
@@ -151,9 +218,9 @@ const Search = () => {
     }, 1000);
     
     return () => clearTimeout(delayBounce);
-  }, [query, type]);
+  }, [query, contentType, pageNum, sortBy]); // Added sortBy dependency
 
-  // Fuzzy search logic
+  // Apply fuzzy or strict search based on setting
   useEffect(() => {
     if (!query.trim()) {
       setFilteredResults([]);
@@ -161,29 +228,38 @@ const Search = () => {
     }
 
     if (allData.length > 0) {
-      const fuse = new Fuse(allData, {
-        keys: ['title', 'name', 'overview'],
-        threshold: 0.5,
-      });
-      
-      const results = fuse.search(query).map((result) => result.item);
-      setFilteredResults(results.length > 0 ? results : []);
+      if (strictSearch) {
+        // Strict search - exact matching of terms
+        const searchTerms = query.toLowerCase().split(' ');
+        const results = allData.filter(item => {
+          const title = (item.title || item.name || '').toLowerCase();
+          const overview = (item.overview || '').toLowerCase();
+          
+          // Check if ALL search terms are present in title or overview
+          return searchTerms.every(term => 
+            title.includes(term) || overview.includes(term)
+          );
+        });
+        
+        setFilteredResults(results);
+      } else {
+        // Fuzzy search using Fuse.js
+        const fuse = new Fuse(allData, {
+          keys: ['title', 'name', 'overview'],
+          threshold: 0.5,
+        });
+        
+        const results = fuse.search(query).map((result) => result.item);
+        setFilteredResults(results.length > 0 ? results : []);
+      }
+    } else {
+      setFilteredResults([]);
     }
-  }, [query, allData, pageNum]);
+  }, [query, allData, strictSearch]);
 
-  // Load more results with animation
-  const loadMoreResults = () => {
-    gsap.to(window, {
-      scrollTo: { y: document.body.scrollHeight, autoKill: false },
-      duration: 1,
-      ease: "power2.inOut",
-      onComplete: () => setPageNum(prev => prev + 1)
-    });
-  };
-  
   // Handle content type change with animation
-  const handleTypeChange = (newType) => {
-    if (type !== newType) {
+  const handleContentTypeChange = (newContentType) => {
+    if (contentType !== newContentType) {
       // Animate current results out
       if (resultsRef.current) {
         gsap.to(resultsRef.current, {
@@ -191,22 +267,33 @@ const Search = () => {
           y: -20,
           duration: 0.3,
           onComplete: () => {
-            setType(newType);
+            setContentType(newContentType);
             setPageNum(1);
             // Results will animate back in via useEffect when filteredResults updates
           }
         });
       } else {
-        setType(newType);
+        setContentType(newContentType);
         setPageNum(1);
       }
     }
   };
 
+  // Handle sort change
+  const handleSortChange = (e) => {
+    setSortBy(e.target.value);
+    setPageNum(1); // Reset to first page on sort change
+  };
+
+  // Toggle search strictness
+  const toggleSearchStrictness = () => {
+    setStrictSearch(!strictSearch);
+  };
+
   const handlePageChange = (newPage) => {
-      // Simple scroll to top
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-      setPageNum(newPage);
+    // Simple scroll to top
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setPageNum(newPage);
   };
 
   return (
@@ -222,7 +309,7 @@ const Search = () => {
           </h1>
           
           {/* Search with original animation */}
-          <div className="flex flex-col justify-center items-center gap-4 mb-6">
+          <div className="flex flex-col justify-center items-center gap-4 mb-4">
             <div className="flex items-center justify-center gap-2">
               <i className="fa-solid fa-search flex text-center text-gray-400"></i>
               <input 
@@ -250,23 +337,77 @@ const Search = () => {
             </div>
             
             {/* Content Type Selector with hover animations */}
-            <div className="flex space-x-2">
+            <div className="flex flex-wrap justify-center gap-2">
               <button 
-                onClick={() => handleTypeChange('movie')} 
-                className={`px-3 py-1 rounded-lg font-medium transition-all duration-300 transform hover:scale-105 ${type === 'movie' 
-                  ? 'bg-yellow-500 text-gray-900' 
-                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+                onClick={() => handleContentTypeChange('movie')} 
+                className={`px-3 py-1 rounded-lg font-medium transition-all duration-300 transform hover:scale-105 ${
+                  contentType === 'movie'
+                    ? 'bg-yellow-500 text-gray-900' 
+                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
               >
                 Movies
               </button>
               <button 
-                onClick={() => handleTypeChange('tv')} 
-                className={`px-3 py-1 rounded-lg font-medium transition-all duration-300 transform hover:scale-105 ${type === 'tv' 
-                  ? 'bg-yellow-500 text-gray-900' 
-                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+                onClick={() => handleContentTypeChange('tv')} 
+                className={`px-3 py-1 rounded-lg font-medium transition-all duration-300 transform hover:scale-105 ${
+                  contentType === 'tv'
+                    ? 'bg-yellow-500 text-gray-900' 
+                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
               >
                 TV Shows
               </button>
+              <button 
+                onClick={() => handleContentTypeChange('anime_movie')} 
+                className={`px-3 py-1 rounded-lg font-medium transition-all duration-300 transform hover:scale-105 ${
+                  contentType === 'anime_movie'
+                    ? 'bg-purple-500 text-gray-900' 
+                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+              >
+                Anime Movies
+              </button>
+              <button 
+                onClick={() => handleContentTypeChange('anime_tv')} 
+                className={`px-3 py-1 rounded-lg font-medium transition-all duration-300 transform hover:scale-105 ${
+                  contentType === 'anime_tv'
+                    ? 'bg-purple-500 text-gray-900' 
+                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+              >
+                Anime Series
+              </button>
+            </div>
+            
+            {/* New: Search Options Controls */}
+            <div className="flex flex-wrap justify-center items-center gap-4 mt-2">
+              {/* Sort selector */}
+              <div className="flex items-center gap-2">
+                <label htmlFor="sort-select" className="text-gray-300 text-sm">Sort by:</label>
+                <select 
+                  id="sort-select" 
+                  value={sortBy} 
+                  onChange={handleSortChange}
+                  className="bg-gray-700 text-white rounded-lg px-2 py-1 text-sm border-none focus:ring-2 focus:ring-yellow-500"
+                >
+                  <option value="popularity.desc">Popularity (High to Low)</option>
+                  <option value="popularity.asc">Popularity (Low to High)</option>
+                  <option value="vote_average.desc">Rating (High to Low)</option>
+                  <option value="vote_average.asc">Rating (Low to High)</option>
+                  <option value="release_date.desc">Newest First</option>
+                  <option value="release_date.asc">Oldest First</option>
+                </select>
+              </div>
+              
+              {/* Search strictness toggle */}
+              <div className="flex items-center gap-2">
+                <span className="text-gray-300 text-sm">Strict Search:</span>
+                <button 
+                  onClick={toggleSearchStrictness}
+                  className={`w-10 h-5 relative rounded-full transition-colors ${strictSearch ? 'bg-green-500' : 'bg-gray-600'}`}
+                >
+                  <span 
+                    className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transform transition-transform ${strictSearch ? 'right-0.5' : 'left-0.5'}`}
+                  ></span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -300,7 +441,10 @@ const Search = () => {
         {!isLoading && query.length > 0 && filteredResults.length === 0 && (
           <div className="text-center py-12">
             <div className="text-gray-400 text-xl font-bold">No results found</div>
-            <p className="text-gray-500 mt-2">Try adjusting your search terms or content type</p>
+            <p className="text-gray-500 mt-2">
+              Try adjusting your search terms, content type, or 
+              {strictSearch && <span> try <button onClick={toggleSearchStrictness} className="text-yellow-400 underline">disabling strict search</button></span>}
+            </p>
           </div>
         )}
         
@@ -309,35 +453,70 @@ const Search = () => {
           <div ref={resultsRef} className="mt-6">
             <h2 className="text-xl font-semibold text-white mb-4">
               Results for "<span className="text-yellow-400">{query}</span>"
+              <span className={`ml-2 ${isAnime() ? 'text-purple-400' : 'text-yellow-400'}`}>
+                ({contentType.includes('anime') ? 
+                  (contentType === 'anime_movie' ? 'Anime Movies' : 'Anime Series') : 
+                  (contentType === 'movie' ? 'Movies' : 'TV Shows')})
+              </span>
               <span className="text-sm font-normal text-gray-400 ml-2">
-                ({filteredResults.length})
+                ({filteredResults.length} results)
+              </span>
+              <span className="text-sm font-normal text-gray-400 ml-2">
+                {strictSearch ? 'Strict search' : 'Fuzzy search'}
               </span>
             </h2>
             
             <div className="overflow-hidden w-full">
-              <Card Data={filteredResults} mediaType={type}  classul="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4" />
+              <Card Data={filteredResults} mediaType={getMediaType()} classul="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4" />
             </div>
             
-            {filteredResults.length >= 20 && (
-              <motion.section 
-                  className="flex gap-3 items-center justify-center mt-8 mb-4"
-              >
+            {/* Enhanced Pagination Controls */}
+            {filteredResults.length > 0 && (
+              <div className="flex flex-col items-center justify-center mt-8 mb-4">
+                <div className="flex gap-3 items-center justify-center">
                   <button 
-                      className="bg-gray-800 hover:bg-gray-700 text-yellow-300 font-medium py-2 px-6 rounded-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                      onClick={() => handlePageChange(pageNum - 1)} 
-                      disabled={pageNum === 1}
+                    className="bg-gray-800 hover:bg-gray-700 text-yellow-300 font-medium py-2 px-6 rounded-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                    onClick={() => handlePageChange(1)} 
+                    disabled={pageNum === 1}
                   >
-                      Prev
+                    First
                   </button>
-                  <p className="text-white font-medium">{pageNum}</p>
                   <button 
-                      className="bg-gray-800 hover:bg-gray-700 text-yellow-300 font-medium py-2 px-6 rounded-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                      onClick={() => handlePageChange(pageNum + 1)} 
-                      disabled={filteredResults.length < 20}
+                    className="bg-gray-800 hover:bg-gray-700 text-yellow-300 font-medium py-2 px-6 rounded-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                    onClick={() => handlePageChange(pageNum - 1)} 
+                    disabled={pageNum === 1}
                   >
-                      Next
+                    Prev
                   </button>
-              </motion.section>
+                  
+                  <div className="flex items-center gap-1">
+                    <span className="text-white font-medium">Page {pageNum}</span>
+                    <span className="text-gray-400 text-sm">of {totalPages}</span>
+                  </div>
+                  
+                  <button 
+                    className="bg-gray-800 hover:bg-gray-700 text-yellow-300 font-medium py-2 px-6 rounded-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                    onClick={() => handlePageChange(pageNum + 1)} 
+                    disabled={pageNum >= totalPages || filteredResults.length < 20}
+                  >
+                    Next
+                  </button>
+                  <button 
+                    className="bg-gray-800 hover:bg-gray-700 text-yellow-300 font-medium py-2 px-6 rounded-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                    onClick={() => handlePageChange(totalPages)} 
+                    disabled={pageNum >= totalPages || filteredResults.length < 20}
+                  >
+                    Last
+                  </button>
+                </div>
+                
+                {totalPages > 1 && (
+                  <p className="text-gray-400 text-sm mt-2">
+                    Showing results {((pageNum - 1) * 20) + 1} - {Math.min(pageNum * 20, totalPages * 20)} 
+                    of approximately {totalPages * 20}
+                  </p>
+                )}
+              </div>
             )}
           </div>
         )}

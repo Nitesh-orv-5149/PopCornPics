@@ -16,6 +16,7 @@ const Detailspage = () => {
   const [trailerKey, setTrailerKey] = useState(null);
   const [expandedReviewId, setExpandedReviewId] = useState(null);
   const [isWishlisted, setIsWishlisted] = useState(false);
+  const [keywords, setKeywords] = useState([]);
 
   const { User } = useAuth();
   const [isBookmarked, setIsBookmarked] = useState(false);
@@ -61,6 +62,20 @@ const Detailspage = () => {
                                     video.type === 'Trailer' && video.site === 'YouTube');
       if (trailer) {
         setTrailerKey(trailer.key);
+      }
+      
+      // Fetch keywords
+      const keywordsResponse = await axios.get(`https://api.themoviedb.org/3/${validType}/${id}/keywords`, {
+        params: {
+          api_key: API_KEY,
+        },
+      });
+      
+      // Different response structure for movies vs TV shows
+      if (validType === 'movie') {
+        setKeywords(keywordsResponse.data.keywords || []);
+      } else {
+        setKeywords(keywordsResponse.data.results || []);
       }
       
     } catch (error) {
@@ -188,9 +203,6 @@ const Detailspage = () => {
             </div>
           </motion.div>
 
-          {/* Rest of the component remains unchanged */}
-          {/* ... */}
-          
           {/* Media content container - horizontal on md+ screens */}
           <div className="flex flex-col md:flex-row md:items-start md:justify-between w-full gap-8 mb-8">
             {/* Poster */}
@@ -224,6 +236,21 @@ const Detailspage = () => {
                     {details.genres.map((genre) => (
                       <span key={genre.id} className="px-3 py-1 bg-blue-900/50 rounded-full text-sm">
                         {genre.name}
+                      </span>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+
+              {/* Keywords Section */}
+              {keywords && keywords.length > 0 && (
+                <motion.div variants={fadeInVariant} initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.2 }}
+                             className="mb-8">
+                  <h2 className="text-xl font-bold mb-3">Keywords</h2>
+                  <div className="flex flex-wrap gap-2">
+                    {keywords.map((keyword) => (
+                      <span key={keyword.id} className="px-3 py-1 bg-purple-900/50 rounded-full text-sm">
+                        {keyword.name}
                       </span>
                     ))}
                   </div>

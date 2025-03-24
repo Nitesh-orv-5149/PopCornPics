@@ -39,7 +39,8 @@ const GenresPage = () => {
                 params: {
                   include_adult: false,
                   api_key: API_KEY,
-                  sort_by: "popularity.desc" ,
+                  'vote_average.gte': 7.5,
+                  'vote_count.gte': 100,
                   language: "en",
                   with_genres: SelectedGenres.join(","),
                   page: pageNum,
